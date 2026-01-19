@@ -1,13 +1,25 @@
+from xmlrpc import client
+from openrouter import OpenRouter
 import requests
 from datetime import date
 import os
 import json
-
-def make_plan(user_info="A student athlete (baseball) who trains after school."):
+def respond(prompt: str, client: OpenRouter):
+    with open("ai_history.json", "r") as f:
+        history = [json.loads(line) for line in f.readlines()]
+    prompt = prompt + f"Here is the history of what has been asked before and what has been responded: {history}"
+    response = client.chat.send(
+    model="google/gemini-3-flash-preview",
+    messages=[
+        {"role": "user", "content": prompt}
+    ],
+    stream=False,
+)
+    return response.choices[0].message.content
+def make_plan(user_info="A student athlete (baseball) who trains after school.", client=None):
     today = date.today()
     food = requests.get(f"https://srvusd.api.nutrislice.com/menu/api/weeks/school/pine-valley-middle/menu-type/lunch/{today.year}/{today.month}/{today.day}/?format=json").json()
     api_key = os.getenv("API_KEY")
-    print(api_key)
     all_food = []
     for day in food.get("days", []):
         items = day.get("menu_items", [])
@@ -34,23 +46,18 @@ Present the plan with the days of the week as titles (e.g., Monday, Tuesday).
 ONLY USE THE FOOD ITEMS AVAILABLE.
 """
     
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "google/gemini-3-flash-preview",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-    
-    response = requests.post(
-        "https://ai.hackclub.com/proxy/v1/chat/completions",
-        headers=headers,
-        json=data
-    )
-    return response.json()["choices"][0]["message"]["content"]
 
-if __name__ == "__main__":
-    print(make_plan())
+    response = client.chat.send(
+    model="google/gemini-3-flash-preview",
+    messages=[
+        {"role": "user", "content": prompt}
+    ],
+    stream=False,
+)
+    with open("ai_history.json", "a") as f:
+        json.dump({
+            "prompt": prompt,
+            "plan": response.choices[0].message.content
+        }, f)
+        f.write("\n")
+    return response.choices[0].message.content
