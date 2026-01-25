@@ -1,12 +1,13 @@
+import streamlit as st
 from xmlrpc import client
 from openrouter import OpenRouter
 import requests
 from datetime import date
 import os
 import json
-def respond(prompt: str, client: OpenRouter):
-    with open("ai_history.json", "r") as f:
-        history = [json.loads(line) for line in f.readlines()]
+def respond(prompt: str, client: OpenRouter, history):
+    history = st.session_state.history
+    old_prompt = prompt
     prompt = prompt + f"Here is the history of what has been asked before and what has been responded: {history}"
     response = client.chat.send(
     model="google/gemini-3-flash-preview",
@@ -15,6 +16,10 @@ def respond(prompt: str, client: OpenRouter):
     ],
     stream=False,
 )
+    st.session_state.history = history + [{
+            "prompt": old_prompt,
+            "response": response.choices[0].message.content
+        }]
     return response.choices[0].message.content
 def make_plan(user_info="A student athlete (baseball) who trains after school.", client=None):
     today = date.today()
@@ -54,10 +59,8 @@ ONLY USE THE FOOD ITEMS AVAILABLE.
     ],
     stream=False,
 )
-    with open("ai_history.json", "a") as f:
-        json.dump({
+    st.session_state.history = [{
             "prompt": prompt,
             "plan": response.choices[0].message.content
-        }, f)
-        f.write("\n")
+        }]
     return response.choices[0].message.content
